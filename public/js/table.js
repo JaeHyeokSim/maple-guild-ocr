@@ -7,7 +7,6 @@ import { cleanName } from './ocr.js';
 
 const SNAP_KEY = 'mgo.snapshots';
 const COLS = [
-  { key: 'online', label: '접속' },
   { key: 'name', label: '닉네임', edit: true },
   { key: 'job', label: '직업', edit: true },
   { key: 'level', label: '레벨', edit: true, num: true },
@@ -194,7 +193,6 @@ export class ResultTable {
 
     this.table.tBodies[0].innerHTML = this.visibleRows().map((r, i) => {
       const tds = COLS.map(c => {
-        if (c.key === 'online') return `<td><span class="dot${r.online ? ' on' : ''}"></span></td>`;
         const cls = [c.num && 'num', r.low.includes(c.key) && 'low', c.num && c.key !== 'level' && r[c.key] === 0 && 'zero',
           c.key === 'name' && r.guess && !r.low.includes('name') && 'guess']
           .filter(Boolean).join(' ');
@@ -230,8 +228,8 @@ export class ResultTable {
       return d.rowImg ? `<tr class="origRow"><td></td><td colspan="${span - 1}"><img src="${d.rowImg}" alt="원본 행"></td></tr>` : '';
     }
     const img = i => `<td><img src="${d.colImgs[i]}" alt=""></td>`;
-    // 표 열 순서: #, 접속, 닉네임, 직업, 레벨, 직위, 주간미션, 지하수로, 플래그, (비교 열), 삭제
-    const cells = ['<td></td>', '<td></td>', ...[0, 1, 2, 3, 4, 5, 6].map(img)];
+    // 표 열 순서: #, 닉네임, 직업, 레벨, 직위, 주간미션, 지하수로, 플래그, (비교 열), 삭제
+    const cells = ['<td></td>', ...[0, 1, 2, 3, 4, 5, 6].map(img)];
     while (cells.length < span) cells.push('<td></td>');
     return `<tr class="origRow">${cells.join('')}</tr>`;
   }
@@ -389,8 +387,8 @@ export class ResultTable {
   toMatrix() {
     const rows = this.visibleRows();
     return [
-      ['닉네임', '직업', '레벨', '직위', '주간미션', '지하수로', '플래그', '접속'],
-      ...rows.map(r => [...FIELDS.map(f => r[f] ?? ''), r.online ? 'O' : '']),
+      ['닉네임', '직업', '레벨', '직위', '주간미션', '지하수로', '플래그'],
+      ...rows.map(r => FIELDS.map(f => r[f] ?? '')),
     ];
   }
 
@@ -417,7 +415,7 @@ export class ResultTable {
     const snap = {
       id: String(Date.now()),
       label,
-      rows: this.rows.map(r => Object.fromEntries([...FIELDS, 'online'].map(f => [f, r[f]]))),
+      rows: this.rows.map(r => Object.fromEntries(FIELDS.map(f => [f, r[f]]))),
     };
     list.unshift(snap);
     saveSnapshots(list.slice(0, 30));
