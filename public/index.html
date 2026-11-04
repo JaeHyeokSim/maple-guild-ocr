@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>길드 참여현황 OCR</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <header>
+    <h1>길드 컨텐츠 참여 현황 OCR</h1>
+    <span id="ocrStatus" class="status">OCR 엔진 로딩 중…</span>
+  </header>
+
+  <main>
+    <div class="col">
+      <section class="panel">
+        <h2>1. 화면 가져오기</h2>
+        <div class="bar">
+          <button id="btnShare">메이플 창 공유 시작</button>
+          <button id="btnStopShare" hidden>공유 중지</button>
+          <label class="toggle auto"><input type="checkbox" id="chkAuto" disabled> 자동 캡처 (화면 공유 중 스크롤하면 자동 인식)</label>
+          <label class="btn">이미지 열기<input type="file" id="fileInput" accept="image/*" multiple hidden></label>
+        </div>
+        <p class="hint">스크린샷을 <b>Ctrl+V</b>로 붙여넣거나 이 페이지에 끌어다 놓아도 됩니다. 공유할 때는 <b>창 → MapleStory</b>를 선택하세요.</p>
+        <canvas id="overview" hidden></canvas>
+        <video id="video" muted playsinline hidden></video>
+      </section>
+
+      <section class="panel">
+        <h2>길드원 명단 (선택)</h2>
+        <p class="hint">넥슨 오픈API에서 길드원 명단을 불러오면 OCR 닉네임을 실제 닉네임으로 맞춰 주고, 빠진 길드원도 알려줍니다.</p>
+        <div class="bar">
+          <input id="world" list="worlds" placeholder="월드 (예: 스카니아)" size="10">
+          <datalist id="worlds">
+            <option>스카니아</option><option>베라</option><option>루나</option><option>제니스</option><option>크로아</option>
+            <option>유니온</option><option>엘리시움</option><option>이노시스</option><option>레드</option><option>오로라</option>
+            <option>아케인</option><option>노바</option><option>에오스</option><option>핼리오스</option>
+            <option>챌린저스</option><option>챌린저스2</option><option>챌린저스3</option><option>챌린저스4</option>
+          </datalist>
+          <input id="guildName" placeholder="길드명" size="10">
+          <input id="apiKey" type="password" placeholder="개인 API 키 (선택)" size="16">
+          <button id="btnRoster">명단 불러오기</button>
+          <button id="btnRosterRefresh" title="24시간 캐시를 무시하고 넥슨 API에서 다시 조회">강제 새로고침</button>
+        </div>
+        <div id="rosterStatus" class="hint"></div>
+      </section>
+
+      <section class="panel">
+        <h2>2. 표 영역 지정</h2>
+        <p class="hint">길드창 <b>컨텐츠 참여 현황</b> 표는 자동으로 찾습니다(창을 옮겨도 따라감).
+          못 찾으면 위 화면에서 길드원 목록의 첫 행부터 마지막 행까지(헤더 제외) 드래그하세요.
+          아래 확대 화면의 주황 세로선을 끌어 열 경계를 조정할 수 있습니다.</p>
+        <canvas id="roiView" hidden></canvas>
+        <div class="bar">
+          <button id="btnFindTable">표 자동 찾기</button>
+          <button id="btnAutoCols">열 경계 자동 맞춤</button>
+          <button id="btnRecognize" class="primary">현재 화면 인식</button>
+        </div>
+        <div id="progress" class="hint"></div>
+      </section>
+    </div>
+
+    <section class="panel col">
+      <h2>3. 결과</h2>
+      <div class="bar">
+        <span id="summary" class="summary"></span>
+      </div>
+      <div class="bar chips" id="chips"></div>
+      <div class="bar">
+        <select id="filter">
+          <option value="all">전체</option>
+          <option value="suro0">지하수로 0</option>
+          <option value="flag0">플래그 0</option>
+          <option value="mission">주간미션 미완료</option>
+          <option value="review">검토 (미인식·추정)</option>
+          <option value="unrated">검토 중 미평가</option>
+          <option value="bad">틀림으로 평가</option>
+          <option value="low">미인식 (노란 칸)</option>
+          <option value="guess">소거법 추정 (파란 칸)</option>
+        </select>
+        <label class="toggle"><input type="checkbox" id="chkOrig"> 원본 행 같이 보기</label>
+        <select id="compare"><option value="">비교 기록 없음</option></select>
+        <button id="btnSave">기록 저장</button>
+        <button id="btnLoad">기록 불러오기</button>
+        <button id="btnDelSnap">기록 삭제</button>
+      </div>
+      <div class="bar">
+        <button id="btnCsv">CSV 저장</button>
+        <button id="btnCopy">엑셀용 복사</button>
+        <button id="btnLowJson" title="틀림으로 평가한 행의 자동값·정답·OCR 후보·원본 이미지를 JSON으로 저장">오인식 내보내기</button>
+        <button id="btnClear" class="danger">전체 지우기</button>
+      </div>
+      <p class="hint">노란 칸은 인식이 불확실한 값, 파란 닉네임은 명단 소거법으로 추정한 값입니다. 칸을 클릭하면 직접 고칠 수 있고, "원본 행 같이 보기"를 켜면 각 칸 아래에 원본 캡처가 나옵니다.
+        고친 닉네임과 <b>기록 저장</b> 시의 닉네임은 학습되어 다음 캡처부터 자동으로 채워집니다.</p>
+      <div class="tableWrap">
+        <table id="result"><thead></thead><tbody></tbody></table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

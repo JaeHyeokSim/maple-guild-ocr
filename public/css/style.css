@@ -1,0 +1,119 @@
+:root {
+  --bg: #1b1f24;
+  --panel: #262c33;
+  --line: #3a424c;
+  --text: #e6e9ec;
+  --muted: #9aa4ae;
+  --accent: #2bb3d6;
+  --warn: #f2c94c;
+  --danger: #e5604f;
+  --ok: #57c47a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 18px; margin: 0; }
+
+.status { color: var(--muted); font-size: 13px; }
+.status.ready { color: var(--ok); }
+.status.error { color: var(--danger); }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 16px;
+  padding: 16px 20px;
+}
+@media (max-width: 1100px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+}
+
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.panel h2 { font-size: 15px; margin: 0 0 10px; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+
+.hint { color: var(--muted); font-size: 12.5px; margin: 6px 0; }
+
+button, .btn, select, input {
+  background: #323a43;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover, .btn:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+button.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+.toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+
+canvas { display: block; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; margin-top: 8px; }
+#overview { width: 100%; cursor: crosshair; }
+#roiView { image-rendering: pixelated; }
+
+.summary { color: var(--muted); }
+.toggle.auto { color: var(--text); font-weight: bold; }
+.chips button { border-radius: 14px; padding: 3px 12px; font-size: 13px; }
+.chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chips button b { margin-left: 4px; }
+.summary b { color: var(--text); }
+
+.tableWrap { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid var(--line); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th {
+  position: sticky; top: 0;
+  background: #303740;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+th.sorted::after { content: " ▾"; color: var(--accent); }
+th.sorted.asc::after { content: " ▴"; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td[contenteditable]:focus { outline: 1px solid var(--accent); background: #1f252b; }
+td.low { background: rgba(242, 201, 76, .18); }
+td.guess { background: rgba(43, 179, 214, .18); }
+td.delta-up { color: var(--ok); }
+td.delta-down { color: var(--danger); }
+td.zero { color: var(--danger); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #59616b; }
+.dot.on { background: var(--ok); }
+td.debug { white-space: normal; font-size: 12px; color: var(--muted); min-width: 360px; }
+.reviewBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 4px; font-size: 12px; color: var(--muted); white-space: normal; }
+.evals { display: flex; gap: 4px; }
+button.ev { padding: 2px 10px; font-size: 12px; }
+button.ev.ok.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+button.ev.bad.on { background: var(--danger); border-color: var(--danger); color: #fff; }
+.reviewBar button.cand { padding: 2px 8px; font-size: 12px; border-style: dashed; }
+.reviewBar input.pickInput { padding: 2px 6px; font-size: 12px; }
+tr.reviewRow td { padding: 0 8px; border-bottom: none; }
+tr.origRow td { padding: 0 8px 6px; border-bottom: 1px solid var(--line); }
+tr.origRow img { display: block; max-width: none; border-radius: 2px; }
+.del { padding: 0 6px; border: none; background: none; color: var(--muted); }
+.del:hover { color: var(--danger); }

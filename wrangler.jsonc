@@ -1,0 +1,9 @@
+{
+  // 정적 페이지(public/) + 넥슨 오픈API 길드원 명단 프록시(/api/guild)
+  // OCR은 브라우저에서 처리하고 서버로 이미지를 보내지 않는다.
+  // 넥슨 API 키: 로컬은 .dev.vars 에 NEXON_API_KEY=..., 배포는 `npx wrangler secret put NEXON_API_KEY`
+  "name": "maple-guild-ocr",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" }
+}
