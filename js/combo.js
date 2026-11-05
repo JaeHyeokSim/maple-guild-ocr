@@ -28,7 +28,8 @@ export function matches(word, query) {
   return false;
 }
 
-export function attachCombo(input, items) {
+// limit: 한 번에 보여줄 최대 개수(길드원 명단처럼 큰 목록용)
+export function attachCombo(input, items, { limit = Infinity } = {}) {
   const wrap = document.createElement('span');
   wrap.className = 'combo';
   input.replaceWith(wrap);
@@ -41,7 +42,11 @@ export function attachCombo(input, items) {
 
   let shown = [], active = -1;
   const render = () => {
-    shown = items.filter(it => matches(it, input.value));
+    shown = [];
+    for (const it of items) {
+      if (matches(it, input.value)) shown.push(it);
+      if (shown.length >= limit) break;
+    }
     if (shown.includes(input.value.trim()) && shown.length === 1) shown = [];
     list.replaceChildren(...shown.map((it, i) => {
       const li = document.createElement('li');

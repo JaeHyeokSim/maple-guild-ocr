@@ -1,7 +1,7 @@
 // Tesseract.js 워커 관리와 행 단위 인식.
 import { makeCell, isOnline, cropDataURL, textHash, textBox, nameEnd } from './segment.js';
 import { lookupName } from './names.js';
-import { matchMember } from './members.js';
+import { matchMember, getRoster } from './members.js';
 import { correctJob } from './jobs.js';
 import { readDigits } from './digits.js';
 
@@ -68,6 +68,25 @@ async function readName(img, r, variants) {
   return out.sort((a, b) => b.plausible - a.plausible || b.conf - a.conf);
 }
 
+// 한글 닉네임을 글자 단위로 읽는다. 게임 폰트의 한글은 고정 폭(약 10.4px)이라 폭으로 글자 수를 알고 등분할 수 있다.
+// 드문 글자(팎 등) 하나 때문에 줄 전체 OCR이 망가져도 나머지 글자("?수")로 명단을 좁힐 수 있다.
+// 반환: 글자 배열(못 읽은 자리는 '') 또는 null(한글 고정 폭에 맞지 않는 닉네임)
+const HANGUL_PITCH = 10.4;
+export async function readGlyphs(img, r) {
+  const box = textBox(img, ...r);
+  if (!box) return null;
+  const w = box.r - box.l + 1, n = Math.round((w + 1) / HANGUL_PITCH);
+  if (n < 1 || n > 6 || Math.abs(w + 1 - n * HANGUL_PITCH) > 2.5) return null;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const gx0 = Math.round(box.l + i * HANGUL_PITCH) - 1, gx1 = Math.round(box.l + (i + 1) * HANGUL_PITCH);
+    const res = await rec(W.kor, makeCell(img, gx0, gx1, r[2], r[3]));
+    const c = [...res.text].find(ch => /[가-힣]/.test(ch)) ?? '';
+    out.push(res.conf >= 40 ? c : '');
+  }
+  return out;
+}
+
 async function readNumber(img, r, re) {
   const exact = readDigits(img, ...r);
   if (exact !== null && re.test(exact)) return { value: parseInt(exact.replace(/,/g, ''), 10), ok: true, exact: true };
@@ -94,6 +113,8 @@ export async function recognizeRow(img, cols, band) {
   // 닉네임은 괄호 앞(본캐 닉네임)까지만 읽는다
   const N = [cols[0][0], nameEnd(img, ...R(0)), y0, y1];
   const nameHash = textHash(img, ...N);
+  const box = textBox(img, ...N);
+  const nameW = box ? box.r - box.l + 1 : 0; // 닉네임 글자 픽셀 폭 — 명단 후보가 동점일 때 글자 수·종류로 가른다
   const known = lookupName(nameHash);
 
   const [cands, jobRaw, level, rank, mission, suro, flag] = await Promise.all([
@@ -110,6 +131,8 @@ export async function recognizeRow(img, cols, band) {
   const rawName = cleanName(name.text);
   const member = known ? null : cands.map(c => matchMember(cleanName(c.text))).find(Boolean);
   if (member) Object.assign(name, { text: member, conf: 100 });
+  // 명단과 바로 맞지 않으면 글자 단위로 다시 읽어 둔다(소거법 대조용: 팎수 → "?수")
+  const glyphs = !known && !member && getRoster()?.members?.length ? await readGlyphs(img, N) : null;
 
   const job = correctJob(jobRaw.text);
 
@@ -129,6 +152,8 @@ export async function recognizeRow(img, cols, band) {
     rawCands: known ? [rawName] : [...new Set(cands.map(c => cleanName(c.text)).filter(Boolean))],
     fuzzy: !!member && member !== rawName, // 명단 대조로 OCR 결과를 고친 경우(검토 대상)
     nameHash,
+    nameW,
+    glyphs,
     job: job.job,
     level: level.value,
     rank: rank.text.replace(/\s+/g, ''),

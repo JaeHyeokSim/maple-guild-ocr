@@ -111,57 +111,115 @@ function hungarian(cost) {
 }
 
 const HANGUL = /^[가-힣]+$/;
+const HANGUL_JAMO_END = /^[가-힣]+[ㄱ-ㅎ]$/; // "빠ㄷ"처럼 마지막 글자를 자모로만 읽은 경우
+const LATIN = /[A-Za-z0-9]/;
+
+// 게임 폰트에서 글자 픽셀 폭(원래 배율, 글자 사이 간격 포함). 한글 2자 20px, 3자 30px, 빳따c 26px 실측.
+function charW(c) {
+  if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(c)) return 10.4;
+  if (/[iljI1!.,'|:;]/.test(c)) return 3;
+  if (/[mwMW]/.test(c)) return 8;
+  if (/[A-Z]/.test(c)) return 6.5;
+  if (/[0-9]/.test(c)) return 6;
+  return 5.4;
+}
+const textW = m => [...m].reduce((a, c) => a + charW(c), 0) - 1;
+
+// 닉네임 픽셀 폭이 명단 닉네임의 예상 폭과 얼마나 다른지 → 벌점(12% 이내는 0)
+function widthPenalty(w, x) {
+  if (!w) return 0;
+  const e = x.w ?? (x.w = textW(x.m));
+  const rel = Math.abs(e - w) / Math.max(e, w);
+  return 0.6 * Math.max(0, rel - 0.12);
+}
 
 // 한 행의 OCR 후보들과 길드원 하나 사이의 거리.
-// 후보 중 가장 가까운 것을 쓰고, 한글 후보가 닉네임보다 짧으면 앞부분 일치도 본다(빼 → 빼멧, 벌점 있음).
+//  - 후보 중 가장 가까운 것을 쓴다(보조 후보는 +0.05)
+//  - 한글 후보가 닉네임보다 짧으면 앞부분 일치도 본다(빼 → 빼멧, 벌점 있음). 끝이 자모만 남은 "빠ㄷ"도 포함
+//  - 다른 후보가 닉네임 끝 영문·숫자와 맞으면(빳따c ← "Yc") 단서를 합쳐 조금 깎는다
+//  - 닉네임 픽셀 폭(w)이 명단 닉네임 예상 폭과 다르면 벌점(동점일 때 글자 수·종류로 가른다)
+// OCR 후보가 없으면(못 읽은 행) 폭만으로 고르되 거리는 크게 둔다.
 // 반환 { n: 배정용 거리, full: 첫 후보의 전체 거리(확신 판정용) }
-function rowScore(cands, aj, x) {
+// 글자 단위 OCR(glyphs)과 같은 글자 수의 닉네임을 자리별로 비교: 같으면 0, 못 읽은 자리 0.5, 다르면 자모 거리(최대 1)
+function glyphScore(glyphs, x) {
+  if (!glyphs?.some(Boolean)) return null;
+  const mc = [...x.m];
+  if (mc.length !== glyphs.length) return null;
+  let sum = 0;
+  glyphs.forEach((g, i) => {
+    if (!g) { sum += 0.5; return; }
+    if (g === mc[i]) return;
+    const a = jamo(g), b = jamo(mc[i]);
+    sum += Math.min(1, ocrDistance(a, b) / Math.max(a.length, b.length, 1));
+  });
+  return sum / mc.length;
+}
+
+function rowScore(cands, aj, x, w, glyphs) {
   let n = Infinity, full = Infinity;
   cands.forEach((raw, k) => {
     const d = ocrDistance(aj[k], x.j) / Math.max(aj[k].length, x.j.length, 1);
     if (k === 0) full = d;
     n = Math.min(n, d + (k ? 0.05 : 0));
-    if (HANGUL.test(raw) && raw.length < x.m.length) {
-      const pj = jamo(x.m.slice(0, raw.length));
-      const pd = ocrDistance(aj[k], pj) / Math.max(aj[k].length, pj.length);
-      n = Math.min(n, pd + 0.25 + 0.2 * (1 - raw.length / x.m.length));
+    const hj = HANGUL_JAMO_END.test(raw);
+    if ((HANGUL.test(raw) || hj) && raw.length < x.m.length + (hj ? 1 : 0)) {
+      // 같은 자모 수의 앞부분과 한 자모 더 긴 앞부분 중 가까운 쪽(빳따 → 빠ㄷ: ㅅ 빠짐 + ㄸ→ㄷ)
+      const mj = x.j;
+      let pd = Infinity;
+      for (const L of [aj[k].length, aj[k].length + 1]) {
+        if (L > mj.length) continue;
+        pd = Math.min(pd, ocrDistance(aj[k], mj.slice(0, L)) / L);
+      }
+      const len = hj ? raw.length - 0.5 : raw.length;
+      n = Math.min(n, pd + 0.25 + 0.2 * (1 - len / x.m.length) + (k ? 0.05 : 0));
     }
   });
+  if (!cands.length) n = full = 1;
+  // 글자 단위 결과가 모두 맞으면 확정할 만한 근거
+  const g = glyphScore(glyphs, x);
+  if (g != null) { n = Math.min(n, g + 0.05); if (g === 0) full = 0; }
+  // 끝 글자 단서: 닉네임이 영문·숫자로 끝나고 어떤 후보의 끝 글자와 같으면
+  const last = x.m.slice(-1);
+  if (LATIN.test(last) && cands.some(c => c.length && c.slice(-1).toLowerCase() === last.toLowerCase())) n -= 0.1;
+  n += widthPenalty(w, x);
   return { n, full };
 }
 
 // 소거법: 명단을 불러왔으면 닉네임은 반드시 명단 안에 있다.
 // 미확정 행 전체와 아직 확정되지 않은 길드원(taken 제외)을 거리 합이 최소가 되게 한꺼번에 짝짓는다.
 // 스크롤할수록 확정된 길드원이 늘어 후보가 줄고, 매번 다시 계산하므로 앞선 추정도 바로잡힌다.
-// rows: 미확정 행별 OCR 후보 배열(첫 번째가 대표). 반환: Map(행 인덱스 → { m: 닉네임, sure })
-// sure는 대표 후보가 닉네임 전체와 가까울 때만 — 앞부분 일치나 보조 후보로 맞춘 건 확인 필요로 둔다.
-// OCR 후보가 하나도 없으면 근거가 없으므로 배정하지 않는다(검색칸에서 직접 선택).
-export function assignByElimination(rows, taken) {
+// rows: 미확정 행별 OCR 후보 배열(첫 번째가 대표), widths: 행별 닉네임 픽셀 폭(없으면 0).
+// 반환: Map(행 인덱스 → { m: 닉네임, sure })
+// sure는 대표 후보가 닉네임 전체와 가까울 때만 — 앞부분 일치·보조 후보·폭만으로 맞춘 건 확인 필요로 둔다.
+// OCR 후보가 없는 행도 명단 밖 닉네임을 남기지 않도록 폭으로 배정한다(항상 확인 필요).
+export function assignByElimination(rows, taken, widths = [], glyphs = []) {
   const pool = members().filter(x => !taken.has(x.m));
-  const idx = rows.map((c, i) => (c?.length ? i : -1)).filter(i => i >= 0);
+  const idx = rows.map((_, i) => i);
   if (!idx.length || !pool.length) return new Map();
   const scores = idx.map(i => {
-    const aj = rows[i].map(jamo);
-    return pool.map(x => rowScore(rows[i], aj, x));
+    const c = rows[i] ?? [];
+    const aj = c.map(jamo);
+    return pool.map(x => rowScore(c, aj, x, widths[i], glyphs[i]));
   });
   const cost = scores.map(row => {
     const c = row.map(s => s.n);
-    while (c.length < idx.length) c.push(2); // 후보가 행보다 적으면 빈 자리(배정 안 함)
+    while (c.length < idx.length) c.push(9); // 길드원보다 행이 많으면 남는 행은 배정 안 함
     return c;
   });
   const out = new Map();
   hungarian(cost).forEach((j, k) => {
     if (j < 0 || j >= pool.length) return;
-    out.set(idx[k], { m: pool[j].m, sure: scores[k][j].full <= 0.35 });
+    out.set(idx[k], { m: pool[j].m, sure: ((rows[k]?.length ?? 0) > 0 || glyphs[k]?.length > 0) && scores[k][j].full <= 0.35 });
   });
   return out;
 }
 
-// 직접 고를 때 쓸 명단 후보: 가까운 순(taken 제외)
-export function candidatesFor(raw, taken) {
-  const a = jamo(raw || '');
+// 직접 고를 때 쓸 명단 후보: 가까운 순(taken 제외). cands: OCR 후보 배열(또는 문자열 하나), w: 닉네임 픽셀 폭
+export function candidatesFor(cands, taken, w = 0, glyphs = null) {
+  const c = (Array.isArray(cands) ? cands : [cands]).filter(Boolean);
+  const aj = c.map(jamo);
   return members().filter(x => !taken.has(x.m))
-    .map(x => ({ m: x.m, n: raw ? score(raw, a, x) : 1 }))
+    .map(x => ({ m: x.m, n: rowScore(c, aj, x, w, glyphs).n }))
     .sort((p, q) => p.n - q.n || p.m.localeCompare(q.m, 'ko'));
 }
 
