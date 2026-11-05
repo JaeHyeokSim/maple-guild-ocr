@@ -87,6 +87,7 @@ canvas { display: block; max-width: 100%; border: 1px solid var(--line); border-
 #roiView { image-rendering: pixelated; }
 
 .summary { color: var(--muted); }
+h2 .req { font-size: 11px; font-weight: 600; color: var(--danger); border: 1px solid var(--danger); border-radius: 4px; padding: 0 4px; vertical-align: 2px; }
 .toggle.auto { color: var(--text); font-weight: bold; }
 .chips button { border-radius: 14px; padding: 3px 12px; font-size: 13px; }
 .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -168,3 +169,24 @@ tr.origRow img { display: block; max-width: none; border-radius: 2px; }
 }
 .comboList li { padding: 5px 12px; cursor: pointer; white-space: nowrap; }
 .comboList li:hover, .comboList li.on { background: #323a43; color: var(--accent); }
+
+/* 대화상자(alert/confirm 대체) */
+dialog.uiDialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+}
+dialog.uiDialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog.uiDialog[open] { animation: uiPop .14s ease-out; }
+@keyframes uiPop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.uiDialog form { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px 16px; }
+.uiDialog .uiTitle { margin: 0; font-size: 15px; }
+.uiDialog .uiMsg { margin: 0; white-space: pre-line; line-height: 1.6; font-size: 14px; color: var(--text); }
+.uiDialog .uiInput { width: 100%; box-sizing: border-box; }
+.uiDialog .uiBtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.uiDialog .uiBtns button { min-width: 72px; }
+.uiDialog .uiOk.danger { background: var(--danger); border-color: var(--danger); color: #fff; }

@@ -5,6 +5,7 @@ import { jamo, distance } from './hangul.js';
 import { assignByElimination, candidatesFor } from './members.js';
 import { learnName } from './names.js';
 import { cleanName } from './ocr.js';
+import { uiAlert } from './dialog.js';
 
 const SNAP_KEY = 'mgo.snapshots';
 const COLS = [
@@ -35,7 +36,7 @@ export function loadSnapshots() {
   try { return JSON.parse(localStorage.getItem(SNAP_KEY)) || []; } catch { return []; }
 }
 function saveSnapshots(list) {
-  try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); } catch { alert('브라우저 저장소에 저장하지 못했습니다.'); }
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify(list)); } catch { uiAlert('브라우저 저장소에 저장하지 못했습니다.'); }
 }
 
 export class ResultTable {
@@ -377,7 +378,7 @@ export class ResultTable {
     // 명단을 불러왔으면 닉네임은 명단 안에서만 — 명단에 없는 이름은 받지 않고 되돌린다
     if (k === 'name' && this.roster?.members?.length && !this.roster.members.includes(cleanName(v))) {
       td.textContent = r.name ?? '';
-      alert('길드원 명단에 없는 닉네임입니다. 아래 후보 버튼이나 닉네임 검색에서 골라 주세요.');
+      uiAlert('길드원 명단에 없는 닉네임입니다.\n아래 후보 버튼이나 닉네임 검색에서 골라 주세요.');
       return;
     }
     if (r.review || k === 'name') this.#keepAuto(r);
