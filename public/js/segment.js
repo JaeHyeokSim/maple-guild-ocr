@@ -130,6 +130,14 @@ export function nameEnd(img, x0, x1, y0, y1) {
     start = -1;
     glyph = [];
   }
+  // 배율을 되돌린 화면에서는 '('가 앞 글자에 붙거나 두꺼워져 글리프가 정확히 맞지 않는다.
+  // 열 모양으로 찾는다: 가운데만 찬 열(124) → 위아래로 벌어지는 열(1·7행) → 맨 위·맨 아래만 있는 열(0·8행, 가운데 빔)
+  const c = cols.map(m => m >>> top);
+  for (let i = 1; i + 2 < c.length; i++) {
+    if (c[i] !== 124) continue;
+    const b = c[i + 1], d = c[i + 2];
+    if ((b & 130) === 130 && !(b & 257) && (d & 257) === 257 && !(d & 56)) return x0 + i;
+  }
   return x1;
 }
 
@@ -154,8 +162,10 @@ export function cropDataURL(img, x0, x1, y0, y1) {
 
 // OCR 입력용 칸 이미지: 확대 → 이진화(흰 바탕 검은 글자) → 여백.
 // mode 'fixed'는 고정 임계값, 'stretch'는 칸 안의 최소~최대 밝기 중간값을 임계값으로 쓴다(회색 글자용).
+// img.hi(확대 화면의 줄이기 전 원본, hi.s배)가 있으면 그 픽셀에서 잘라 더 선명하게 확대한다.
 export function makeCell(img, x0, x1, y0, y1, { scale = 4, mode = 'fixed', th = TEXT_TH } = {}) {
-  const small = crop(img, x0, x1, y0, y1);
+  const hi = img.hi, k = hi?.s;
+  const small = hi ? crop(hi, Math.round(x0 * k), Math.round(x1 * k), Math.round(y0 * k), Math.round(y1 * k)) : crop(img, x0, x1, y0, y1);
   if (mode === 'stretch') {
     let mn = Infinity, mx = 0;
     const { data, width } = img;
@@ -168,7 +178,7 @@ export function makeCell(img, x0, x1, y0, y1, { scale = 4, mode = 'fixed', th = 
     th = (mn + mx) / 2;
   }
   const pad = 16;
-  const W = small.width * scale, H = small.height * scale;
+  const W = (x1 - x0) * scale, H = (y1 - y0) * scale;
   const big = document.createElement('canvas');
   big.width = W + pad * 2;
   big.height = H + pad * 2;

@@ -23,6 +23,7 @@
           <button id="btnShare">메이플 창 공유 시작</button>
           <button id="btnStopShare" hidden>공유 중지</button>
           <label class="toggle auto"><input type="checkbox" id="chkAuto" disabled> 자동 캡처 (화면 공유 중 스크롤하면 자동 인식)</label>
+          <button id="btnFindTable" title="길드창 컨텐츠 참여 현황 표를 다시 찾습니다">표 자동 찾기</button>
           <label class="btn">이미지 열기<input type="file" id="fileInput" accept="image/*" multiple hidden></label>
         </div>
         <canvas id="overview" hidden></canvas>
@@ -40,7 +41,7 @@
             <option>챌린저스</option><option>챌린저스2</option><option>챌린저스3</option><option>챌린저스4</option>
           </datalist>
           <input id="guildName" placeholder="길드명" size="10">
-          <input id="apiKey" type="password" placeholder="개인 API 키 (선택)" size="16">
+          <input id="apiKey" type="password" placeholder="개인 API 키 (비우면 기본 키)" size="16">
           <button id="btnRoster">명단 불러오기</button>
           <button id="btnRosterRefresh" title="24시간 캐시를 무시하고 넥슨 API에서 다시 조회">강제 새로고침</button>
         </div>
@@ -51,7 +52,6 @@
         <h2>2. 표 영역 지정 <span class="tip" tabindex="0" data-tip="길드창 컨텐츠 참여 현황 표는 자동으로 찾습니다(창을 옮겨도 따라감).&#10;못 찾으면 위 화면에서 길드원 목록의 첫 행부터 마지막 행까지(헤더 제외) 드래그하세요.&#10;아래 확대 화면의 주황 세로선을 끌어 열 경계를 조정할 수 있습니다.">?</span></h2>
         <canvas id="roiView" hidden></canvas>
         <div class="bar">
-          <button id="btnFindTable">표 자동 찾기</button>
           <button id="btnAutoCols">열 경계 자동 맞춤</button>
           <button id="btnRecognize" class="primary">현재 화면 인식</button>
         </div>
@@ -89,6 +89,7 @@
         <button id="btnCsv">CSV 저장</button>
         <button id="btnCopy">엑셀용 복사</button>
         <button id="btnLowJson" title="틀림으로 평가한 행의 자동값·정답·OCR 후보·원본 이미지를 JSON으로 저장">오인식 내보내기</button>
+        <label class="toggle" title="틀림으로 평가한 행(정답·OCR 후보·해당 칸 캡처 이미지)을 인식 개선용으로 서버에 모아 둡니다.&#10;따로 내보내지 않아도 됩니다. 끄면 보내지 않습니다."><input type="checkbox" id="chkReport" checked> 오인식 자동 제보</label>
         <button id="btnClear" class="danger">전체 지우기</button>
       </div>
       <div class="tableWrap">
@@ -96,5 +97,10 @@
       </div>
     </section>
   </main>
+
+  <footer>
+    This site is not associated with NEXON Korea.
+    <a href="https://openapi.nexon.com" target="_blank" rel="noopener">Data based on NEXON OpenAPI.</a>
+  </footer>
 </body>
 </html>

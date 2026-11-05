@@ -43,3 +43,12 @@ npm run deploy   # Cloudflare Workers 배포 (wrangler login 필요)
 서버 키가 없으면 페이지에서 개인 API 키를 넣어 브라우저가 넥슨 API를 직접 호출합니다(넥슨 API는 CORS 허용).
 
 화면 공유(`getDisplayMedia`)는 HTTPS 또는 localhost에서만 동작합니다.
+
+## 오인식 제보 수집
+
+결과에서 "틀림"으로 평가한 행(정답·OCR 후보·칸별 캡처 이미지)은 "오인식 자동 제보"가 켜져 있으면 Vercel 함수(`api/report.mjs`)로 모아 보내져 비공개 Vercel Blob 스토어(`mgo-reports`)에 `reports/날짜/*.json`으로 쌓입니다. 10건이 모이거나 2분이 지나거나 탭을 벗어날 때 한 번에 보냅니다.
+
+```bash
+npx vercel env pull .env.local   # BLOB_READ_WRITE_TOKEN
+npm run reports                  # reports-data/ 로 내려받기
+```

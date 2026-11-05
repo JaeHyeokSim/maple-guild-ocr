@@ -4,9 +4,13 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:pages": "git subtree push --prefix public origin gh-pages"
+    "deploy:pages": "git subtree push --prefix public origin gh-pages",
+    "reports": "node scripts/pull-reports.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.157.0"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.8.2"
   }
 }

@@ -3,9 +3,10 @@ import { detectRows, fullRows, autoDividers, columnRects, regionHash } from './s
 import { initOcr, recognizeRow } from './ocr.js';
 import { ResultTable, loadSnapshots } from './table.js';
 import { startShare, stopShare, bindImageInputs } from './capture.js';
-import { findTable, headerStillThere } from './detect.js';
+import { findTable, findTableScaled, headerStrip, sameStrip } from './detect.js';
 import { fetchRoster, getRoster, matchMember } from './members.js';
 import { attachCombo } from './combo.js';
+import { startReporter } from './report.js';
 
 const $ = s => document.querySelector(s);
 const statusEl = $('#ocrStatus'), progressEl = $('#progress'), video = $('#video');
@@ -28,9 +29,54 @@ const ocrReady = initOcr(s => setStatus(`OCR 엔진 로딩 중… ${s}`))
   .then(() => setStatus('OCR 준비 완료', 'ready'))
   .catch(e => { setStatus('OCR 로딩 실패: ' + e.message, 'error'); throw e; });
 
+// 게임 해상도에 따라 UI가 확대·축소되어 들어오면(1366x768 기준) 원래 배율로 되돌려 frame에 그린다.
+// 이후 행·열 분리, 숫자 템플릿, OCR은 모두 원래 배율 frame에서 동작한다.
+let scale = (() => { try { return +localStorage.getItem('mgo.scale') || 1; } catch { return 1; } })();
+let raw = null; // 마지막 원본 입력 { src, w, h } — 배율을 다시 잴 때 쓴다
+const rawCanvas = document.createElement('canvas');
+const rctx = rawCanvas.getContext('2d', { willReadFrequently: true });
+
+// 배율이 1이 아니면 원본을 rawCanvas에 한 번 찍어 두고(OCR용 고해상도 칸도 같은 프레임에서 자른다) 줄여서 frame에 그린다.
+function drawFrame() {
+  const { src, w, h } = raw;
+  let from = src;
+  if (scale !== 1) {
+    if (rawCanvas.width !== w || rawCanvas.height !== h) { rawCanvas.width = w; rawCanvas.height = h; }
+    rctx.drawImage(src, 0, 0);
+    from = rawCanvas;
+  }
+  const fw = Math.round(w / scale), fh = Math.round(h / scale);
+  if (frame.width !== fw || frame.height !== fh) { frame.width = fw; frame.height = fh; }
+  fctx.imageSmoothingEnabled = true;
+  fctx.imageSmoothingQuality = 'high';
+  fctx.drawImage(from, 0, 0, fw, fh);
+}
+
 function setFrame(src, w, h) {
-  if (frame.width !== w || frame.height !== h) { frame.width = w; frame.height = h; }
-  fctx.drawImage(src, 0, 0);
+  raw = { src, w, h };
+  drawFrame();
+  editor.setFrame(frame);
+}
+
+function rawData() {
+  if (scale === 1) return frameData();
+  return rctx.getImageData(0, 0, raw.w, raw.h);
+}
+
+// 확대된 화면이면 OCR용 칸은 줄이기 전 원본에서 자른다(r: 원래 배율 좌표 영역). 원래 배율 이하면 null.
+function hiRes(r) {
+  if (scale <= 1) return null;
+  const d = rctx.getImageData(Math.round(r.x * scale), Math.round(r.y * scale), Math.ceil(r.w * scale), Math.ceil(r.h * scale));
+  d.s = scale;
+  return d;
+}
+
+function setScale(s) {
+  if (s === scale) return;
+  scale = s;
+  try { localStorage.setItem('mgo.scale', String(s)); } catch {}
+  exactStat.ok = exactStat.fail = 0; // 배율이 바뀌면 숫자 템플릿 성공률도 다시 잰다
+  drawFrame();
   editor.setFrame(frame);
 }
 
@@ -48,18 +94,28 @@ function fitColumns(quiet) {
 }
 
 // 자동 감지 영역이 아직 머리글 바로 아래에 있는지
+let headerRef = null;
 function headerOk() {
   const r = editor.roi;
-  return r && r.y >= 1 && headerStillThere(fctx.getImageData(r.x, r.y - 1, r.w, 1));
+  return !!r && sameStrip(headerStrip(fctx, r), headerRef);
 }
 
 // 표를 찾아 ROI로 지정. 수동 지정 영역(auto=false)은 force일 때만 덮어쓴다.
 function autoLocate(force) {
   if (!frame.width || (!force && editor.roi && (!editor.auto || headerOk()))) return !!editor.roi;
-  const roi = findTable(frameData());
-  if (!roi) return false;
+  let roi = scale === 1 ? findTable(frameData()) : null;
+  if (!roi) {
+    // 배율이 바뀌었거나(해상도 변경) 원래 배율이 아닌 화면: 원본에서 머리글 폭으로 배율을 잰다
+    const img = rawData();
+    const exact = findTable(img);
+    const found = exact ? { scale: 1, roi: exact } : findTableScaled(img);
+    if (!found) return false;
+    setScale(found.scale);
+    roi = found.roi;
+  }
   editor.setRoi(roi, true);
   fitColumns(true);
+  headerRef = headerStrip(fctx, roi);
   return true;
 }
 
@@ -71,6 +127,7 @@ async function recognize() {
   try {
     await ocrReady;
     const img = frameData();
+    img.hi = hiRes({ x: 0, y: 0, w: frame.width, h: frame.height });
     const rows = fullRows(detectRows(img, editor.roi), editor.roi);
     editor.setRows(rows);
     const cols = columnRects(editor.roi, editor.dividers);
@@ -97,8 +154,12 @@ async function recognize() {
 
 async function loadFile(file) {
   const bmp = await createImageBitmap(file);
-  setFrame(bmp, bmp.width, bmp.height);
+  // 배율을 다시 잴 수 있게 원본을 캔버스에 보관
+  const c = document.createElement('canvas');
+  c.width = bmp.width; c.height = bmp.height;
+  c.getContext('2d').drawImage(bmp, 0, 0);
   bmp.close();
+  setFrame(c, c.width, c.height);
 }
 
 bindImageInputs($('#fileInput'), async files => {
@@ -118,11 +179,43 @@ let timer = null, ticks = 0, prevKeys = null, gaps = 0, draining = false, reject
 const queue = [], seen = new Set();
 const sightings = new Map(); // 행 해시 → 본 횟수. 스크롤 중 한 번만 스친 깨진 프레임 행은 거른다.
 const exactStat = { ok: 0, fail: 0 }; // 숫자 템플릿 성공/실패 — 원본 배율 캡처인지 판단
+// 정수배가 아닌 배율에서는 줄인 글자 가장자리의 중간 밝기 픽셀이 영상 노이즈로 임계값을 오가 같은 행도 해시가 달라진다.
+// 그래서 처음 보는 해시는 열별 글자량 프로필이 거의 같은 기존 행의 키로 묶는다.
+const profiles = []; // { key, p: Float32Array }
 window.__mgo = {
   stats: () => ({ ticks, queued: seen.size, pending: queue.length, gaps, rejected, rows: table.rows.length }),
   lowRows: () => table.lowRows(),
   evalRows: () => table.evalRows(),
 };
+
+function rowProfile(img, band) {
+  const { data, width } = img;
+  const p = new Float32Array(width);
+  for (let y = band[0]; y <= band[1]; y++)
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4, v = data[i] + data[i + 1] + data[i + 2];
+      if (v > 220) p[x] += Math.min(1, (v - 220) / 300);
+    }
+  return p;
+}
+// 3px 창마다 글자량 차이가 모두 작으면 같은 행(숫자 한 글자만 달라도 그 자리에서 차이가 커진다)
+function sameProfile(a, b) {
+  if (a.length !== b.length) return false;
+  for (let x = 0; x + 3 <= a.length; x++) {
+    const d = a[x] - b[x] + a[x + 1] - b[x + 1] + a[x + 2] - b[x + 2];
+    if (d > 2 || d < -2) return false;
+  }
+  return true;
+}
+function canonicalKey(img, band, key) {
+  if (scale === 1 || Number.isInteger(scale) || seen.has(key) || sightings.has(key) || rowCache.has(key)) return key;
+  const p = rowProfile(img, band);
+  const hit = profiles.find(x => sameProfile(x.p, p));
+  if (hit) return hit.key;
+  profiles.push({ key, p });
+  if (profiles.length > 3000) profiles.splice(0, 1000);
+  return key;
+}
 
 function sampleRows() {
   const roi = editor.roi;
@@ -130,7 +223,7 @@ function sampleRows() {
   const local = { x: 0, y: 0, w: roi.w, h: roi.h };
   const bands = fullRows(detectRows(img, local), local);
   const cols = columnRects(local, editor.dividers);
-  const keys = bands.map(b => regionHash(img, 0, roi.w, b[0], b[1] + 1) + '|' + editor.dividers.join());
+  const keys = bands.map(b => canonicalKey(img, b, regionHash(img, 0, roi.w, b[0], b[1] + 1) + '|' + editor.dividers.join()));
   // 직전 화면과 겹치는 행이 하나도 없으면 그 사이 행이 지나갔을 수 있다
   if (prevKeys?.length && keys.length && !keys.some(k => prevKeys.includes(k)) && seen.size) gaps++;
   prevKeys = keys;
@@ -140,6 +233,7 @@ function sampleRows() {
     sightings.set(keys[i], n);
     if (n < 2) return;
     seen.add(keys[i]);
+    if (img.hi === undefined) img.hi = hiRes(roi); // 고해상도 원본은 새 행이 있을 때만 잘라 둔다
     queue.push({ img, cols, band, key: keys[i] });
   });
   drain();
@@ -201,9 +295,8 @@ $('#btnShare').addEventListener('click', async () => {
   $('#chkAuto').disabled = false;
   timer = setInterval(() => {
     if (!video.videoWidth || busy) return;
-    const w = video.videoWidth, h = video.videoHeight;
-    if (frame.width !== w || frame.height !== h) { frame.width = w; frame.height = h; }
-    fctx.drawImage(video, 0, 0);
+    raw = { src: video, w: video.videoWidth, h: video.videoHeight };
+    drawFrame();
     if (ticks++ % 4 === 0 || !editor.frame) editor.setFrame(frame); // 미리보기 갱신은 가끔만
     // 자동 감지 영역은 길드창을 옮기면 다시 찾는다(약 1초 간격)
     if ((!editor.roi || editor.auto) && ticks % 8 === 0 && !headerOk()) autoLocate(true);
@@ -332,3 +425,11 @@ document.querySelectorAll('.panel[data-fold]').forEach(panel => {
 
 // 월드 입력: 입력 즉시 필터 + 초성 검색
 attachCombo($('#world'), [...document.querySelectorAll('#worlds option')].map(o => o.textContent));
+
+// 오인식 자동 제보: 틀림으로 평가한 행을 모아 서버(Vercel Blob)에 저장
+startReporter(table, $('#chkReport'), () => ({
+  scale,
+  frame: raw ? [raw.w, raw.h] : null,
+  share: sharing,
+  at: new Date().toISOString(),
+}));

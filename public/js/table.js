@@ -1,4 +1,5 @@
 // 결과 표: 병합(중복 제거), 렌더링, 편집, 정렬/필터, 내보내기, 기록 저장/비교.
+import { attachCombo } from './combo.js';
 import { addCustomJob } from './jobs.js';
 import { jamo, distance } from './hangul.js';
 import { assignByElimination, candidatesFor } from './members.js';
@@ -20,9 +21,15 @@ const FIELDS = ['name', 'job', 'level', 'rank', 'mission', 'suro', 'flag'];
 const fmt = v => (v == null ? '' : v.toLocaleString('ko-KR'));
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-// 스크롤 캡처 사이 중복 판정 키. 점수가 있으면 점수 조합만으로(닉네임 오인식에 강함), 0점이면 닉네임 포함.
-// 닉네임은 소거법 추정으로 바뀔 수 있으므로 OCR 원문(rawName)을 쓴다.
-const sig = r => (r.suro > 0 ? `${r.level}|${r.job}|${r.suro}|${r.flag}|${r.mission}` : `${r.rawName ?? r.name}|${r.level}|${r.job}`);
+// 스크롤 캡처 사이 중복 판정 키: 직업 + 레벨 + 지하수로 점수.
+// 마우스 호버 팝업이 닉네임·플래그·미션 칸을 가려 잘못 읽혀도 같은 사람으로 묶인다.
+// 0점은 여러 명이 겹치므로 닉네임을 포함한다(소거법 추정으로 바뀔 수 있어 OCR 원문 rawName 사용).
+const sig = r => (r.suro > 0 ? `${r.level}|${r.job}|${r.suro}` : `${r.rawName ?? r.name}|${r.level}|${r.job}`);
+// 같은 사람으로 묶였는데 값이 다르게 읽힌 칸은 검토 대상으로 표시
+const CHECK_FIELDS = ['name', 'job', 'level', 'rank', 'mission', 'suro', 'flag'];
+// 닉네임은 길드 안에서 유일하므로 닉네임이 같아도 같은 사람(팝업에 수로 점수가 가려져 키가 달라진 경우).
+// 소거법 추정(guess)·명단 유사 대조(fuzzy) 닉네임은 확정이 아니므로 제외한다(직접 고쳤거나 정답 평가한 행은 확정).
+const nameKeys = r => [r.rawName, (r.manual || r.eval === 'ok' || (!r.guess && !r.fuzzy)) ? r.name : null].filter(s => s?.trim());
 
 export function loadSnapshots() {
   try { return JSON.parse(localStorage.getItem(SNAP_KEY)) || []; } catch { return []; }
@@ -72,13 +79,33 @@ export class ResultTable {
 
   // 새 행을 합친다. 반환: 추가된 행 수
   merge(newRows) {
-    const seen = new Set(this.rows.map(sig));
+    const index = new Map(this.rows.map((x, i) => [sig(x), i]));
+    const byName = new Map();
+    this.rows.forEach((x, i) => nameKeys(x).forEach(n => byName.set(n, i)));
     let added = 0;
     for (const r of newRows) {
+      // 닉네임을 못 읽은 행(팝업에 가려짐 등)은 누구 데이터인지 알 수 없으므로 등록하지 않는다
+      if (!r.name?.trim() && !r.rawName?.trim()) continue;
       const k = sig(r);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      this.rows.push({ ...r, id: crypto.randomUUID(), review: r.low.length > 0 || !!r.fuzzy });
+      const i = index.get(k) ?? nameKeys(r).map(n => byName.get(n)).find(v => v != null);
+      if (i != null) {
+        // 같은 사람: 확신 낮은 칸이 적은 쪽을 남기고, 서로 다르게 읽힌 칸은 검토 대상으로 표시
+        const old = this.rows[i];
+        const diff = CHECK_FIELDS.filter(f => old[f] !== r[f] && !(f === 'name' && old.rawName === r.rawName));
+        if (!diff.length) continue;
+        // 비교는 OCR 자체 확신도(ocrLow)로만 — 병합 때 붙인 검토 표시는 세지 않는다
+        const keep = r.low.length < (old.ocrLow ?? old.low).length
+          ? { ...r, ocrLow: r.low, id: old.id, eval: old.eval, manual: old.manual } : old;
+        keep.low = [...new Set([...keep.low, ...old.low, ...diff])];
+        keep.review = true;
+        this.rows[i] = keep;
+        index.set(k, i);
+        nameKeys(keep).forEach(n => byName.set(n, i));
+        continue;
+      }
+      index.set(k, this.rows.length);
+      nameKeys(r).forEach(n => byName.set(n, this.rows.length));
+      this.rows.push({ ...r, ocrLow: r.low, id: crypto.randomUUID(), review: r.low.length > 0 || !!r.fuzzy });
       added++;
     }
     this.#normalizeRanks();
@@ -109,10 +136,6 @@ export class ResultTable {
 
   setRoster(roster) {
     this.roster = roster;
-    // 닉네임 검색 입력이 함께 쓰는 명단 목록
-    let dl = document.getElementById('rosterList');
-    if (!dl) { dl = document.createElement('datalist'); dl.id = 'rosterList'; document.body.append(dl); }
-    dl.innerHTML = (roster?.members ?? []).map(m => `<option value="${esc(m)}">`).join('');
     this.#eliminate();
     this.render();
   }
@@ -131,8 +154,10 @@ export class ResultTable {
     }
     const names = new Set(this.roster.members);
     const taken = new Set(this.rows.filter(r => names.has(r.name)).map(r => r.name));
-    const open = this.rows.filter(r => !names.has(r.name) && !r.manual && !r.eval && r.rawName != null);
-    for (const [i, { m, sure }] of assignByElimination(open.map(r => r.rawCands ?? [r.rawName].filter(Boolean)), taken)) {
+    // 명단에 없는 닉네임은 직접 고친 행·평가한 행이라도 남기지 않는다(직접 고칠 때는 명단 닉네임만 받는다)
+    const open = this.rows.filter(r => !names.has(r.name) && r.rawName != null);
+    const cands = open.map(r => r.rawCands ?? [r.rawName].filter(Boolean));
+    for (const [i, { m, sure }] of assignByElimination(cands, taken, open.map(r => r.nameW ?? 0), open.map(r => r.glyphs))) {
       const r = open[i];
       r.name = m;
       r.guess = true;
@@ -216,6 +241,9 @@ export class ResultTable {
         : '';
       return row + review + ((this.showOrig || debug) ? this.#origRow(r, head.length) : '');
     }).join('');
+    // 닉네임 검색: 월드 입력과 같은 입력 즉시 필터·초성 검색 자동완성
+    const members = this.roster?.members ?? [];
+    for (const el of this.table.querySelectorAll('input.pickInput')) attachCombo(el, members, { limit: 50 });
     this.#renderSummary();
   }
 
@@ -272,9 +300,20 @@ export class ResultTable {
       + `<button class="ev bad${on('bad')}" data-id="${r.id}" data-ev="bad">틀림</button></div>`;
   }
 
-  // 처음 자동으로 나온 값을 보관(평가·내보내기 비교용)
+  // 처음 자동으로 나온 값을 보관(평가·내보내기 비교용).
+  // 값뿐 아니라 그때 표시 상태(노란 칸·파란 칸 등)와 명단 후보 순위도 남겨, 고친 뒤에도 정정 전후를 분석할 수 있게 한다.
   #keepAuto(r) {
-    r.auto ??= Object.fromEntries(FIELDS.map(f => [f, r[f]]));
+    if (r.auto) return;
+    r.auto = Object.fromEntries(FIELDS.map(f => [f, r[f]]));
+    const taken = new Set(this.rows.filter(x => x !== r).map(x => x.name));
+    r.autoState = {
+      low: [...r.low], guess: !!r.guess, fuzzy: !!r.fuzzy, review: !!r.review,
+      nameW: r.nameW ?? null,
+      // 정정 전 명단 후보 상위 5개(거리 포함)
+      rosterTop: this.roster?.members?.length
+        ? candidatesFor(r.rawCands ?? r.rawName, taken, r.nameW, r.glyphs).slice(0, 5).map(c => `${c.m}:${c.n.toFixed(2)}`)
+        : null,
+    };
   }
 
   // 사용자가 값을 고친 뒤: 자동값과 다르면 틀림
@@ -301,9 +340,9 @@ export class ResultTable {
   #picker(r) {
     if (!this.roster?.members?.length) return '';
     const taken = new Set(this.rows.filter(x => x !== r).map(x => x.name));
-    const top = candidatesFor(r.rawName, taken).filter(c => c.m !== r.name).slice(0, 3)
+    const top = candidatesFor(r.rawCands ?? r.rawName, taken, r.nameW, r.glyphs).filter(c => c.m !== r.name).slice(0, 3)
       .map(({ m }) => `<button class="cand" data-id="${r.id}" data-name="${esc(m)}">${esc(m)}</button>`).join('');
-    return `${top}<input class="pickInput" list="rosterList" data-id="${r.id}" placeholder="닉네임 검색" size="12">`;
+    return `${top}<input class="pickInput"data-id="${r.id}" placeholder="닉네임 검색" size="12">`;
   }
 
   #pick(e) {
@@ -335,7 +374,13 @@ export class ResultTable {
     const text = td.textContent.trim();
     const v = col.num ? (text.replace(/\D/g, '') ? parseInt(text.replace(/\D/g, ''), 10) : null) : text;
     if (v === r[k]) return;
-    if (r.review) this.#keepAuto(r);
+    // 명단을 불러왔으면 닉네임은 명단 안에서만 — 명단에 없는 이름은 받지 않고 되돌린다
+    if (k === 'name' && this.roster?.members?.length && !this.roster.members.includes(cleanName(v))) {
+      td.textContent = r.name ?? '';
+      alert('길드원 명단에 없는 닉네임입니다. 아래 후보 버튼이나 닉네임 검색에서 골라 주세요.');
+      return;
+    }
+    if (r.review || k === 'name') this.#keepAuto(r);
     r[k] = v;
     r.low = r.low.filter(f => f !== k);
     if (k === 'name') {
@@ -367,7 +412,9 @@ export class ResultTable {
       return {
         truth, auto, wrong: FIELDS.filter(f => truth[f] !== auto[f]),
         truthKnown: FIELDS.some(f => truth[f] !== auto[f]), // false: 틀림만 누르고 정답을 안 고친 행
-        rawName: r.rawName, guess: !!r.guess, low: r.low, ...r.debug,
+        rawName: r.rawName, rawCands: r.rawCands, glyphs: r.glyphs ?? null, guess: !!r.guess, low: r.low,
+        autoState: r.autoState ?? null, // 정정 전 표시 상태·명단 후보 순위
+        ...r.debug,
       };
     });
   }
