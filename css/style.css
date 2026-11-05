@@ -115,3 +115,34 @@ tr.origRow td { padding: 0 8px 6px; border-bottom: 1px solid var(--line); }
 tr.origRow img { display: block; max-width: none; border-radius: 2px; }
 .del { padding: 0 6px; border: none; background: none; color: var(--muted); }
 .del:hover { color: var(--danger); }
+
+/* 접기: 제목 클릭 시 제목만 남기고 숨김 */
+.panel[data-fold] > h2 { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+.panel[data-fold] > h2::before { content: "▾"; color: var(--muted); font-size: 12px; width: 12px; transition: transform .15s; }
+.panel.folded > h2::before { transform: rotate(-90deg); }
+.panel.folded > h2 { margin-bottom: 0; }
+.panel.folded > :not(h2) { display: none !important; }
+.panel.col.folded { align-self: start; }
+
+/* 도움말 툴팁 */
+.tip {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px;
+  border: 1px solid var(--line); border-radius: 50%;
+  color: var(--muted); font-size: 11px; font-weight: bold; cursor: help;
+}
+.tip:hover, .tip:focus { color: var(--accent); border-color: var(--accent); outline: none; }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 20;
+  width: max-content; max-width: min(420px, 80vw);
+  padding: 8px 10px;
+  background: #11151a; color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+  font-size: 12.5px; font-weight: normal; line-height: 1.6; white-space: pre-line;
+  opacity: 0; visibility: hidden; transition: opacity .12s;
+  pointer-events: none;
+}
+.tip:hover::after, .tip:focus::after { opacity: 1; visibility: visible; }

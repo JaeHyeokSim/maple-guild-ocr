@@ -313,3 +313,18 @@ $('#btnClear').addEventListener('click', () => {
     gaps = rejected = 0;
   }
 });
+
+// 패널 접기: 제목 클릭으로 토글, 상태는 localStorage에 기억
+const FOLD_KEY = 'mgo.folded';
+let folded = [];
+try { folded = JSON.parse(localStorage.getItem(FOLD_KEY)) || []; } catch {}
+document.querySelectorAll('.panel[data-fold]').forEach(panel => {
+  const id = panel.dataset.fold;
+  panel.classList.toggle('folded', folded.includes(id));
+  panel.querySelector('h2').addEventListener('click', e => {
+    if (e.target.closest('.tip')) return;
+    const on = panel.classList.toggle('folded');
+    folded = on ? [...new Set([...folded, id])] : folded.filter(f => f !== id);
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch {}
+  });
+});
