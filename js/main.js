@@ -5,6 +5,7 @@ import { ResultTable, loadSnapshots } from './table.js';
 import { startShare, stopShare, bindImageInputs } from './capture.js';
 import { findTable, headerStillThere } from './detect.js';
 import { fetchRoster, getRoster, matchMember } from './members.js';
+import { attachCombo } from './combo.js';
 
 const $ = s => document.querySelector(s);
 const statusEl = $('#ocrStatus'), progressEl = $('#progress'), video = $('#video');
@@ -316,8 +317,8 @@ $('#btnClear').addEventListener('click', () => {
 
 // 패널 접기: 제목 클릭으로 토글, 상태는 localStorage에 기억
 const FOLD_KEY = 'mgo.folded';
-let folded = [];
-try { folded = JSON.parse(localStorage.getItem(FOLD_KEY)) || []; } catch {}
+let folded = ['roi'];  // 저장값이 없으면 2. 표 영역 지정만 접힌 상태로 시작
+try { folded = JSON.parse(localStorage.getItem(FOLD_KEY)) ?? folded; } catch {}
 document.querySelectorAll('.panel[data-fold]').forEach(panel => {
   const id = panel.dataset.fold;
   panel.classList.toggle('folded', folded.includes(id));
@@ -328,3 +329,6 @@ document.querySelectorAll('.panel[data-fold]').forEach(panel => {
     try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded)); } catch {}
   });
 });
+
+// 월드 입력: 입력 즉시 필터 + 초성 검색
+attachCombo($('#world'), [...document.querySelectorAll('#worlds option')].map(o => o.textContent));
