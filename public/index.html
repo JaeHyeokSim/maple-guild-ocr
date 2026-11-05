@@ -31,7 +31,7 @@
       </section>
 
       <section class="panel" data-fold="roster">
-        <h2>길드원 명단 (선택) <span class="tip" tabindex="0" data-tip="넥슨 오픈API에서 길드원 명단을 불러오면 OCR 닉네임을 실제 닉네임으로 맞춰 주고, 빠진 길드원도 알려줍니다.">?</span></h2>
+        <h2>2. 길드원 명단 <span class="req">필수</span> <span class="tip" tabindex="0" data-tip="넥슨 오픈API에서 길드원 명단을 불러옵니다. 닉네임은 이 명단 안에서만 맞추므로, 명단을 불러와야 인식을 시작합니다.&#10;한 번 불러온 길드는 24시간 동안 다시 조회하지 않습니다.">?</span></h2>
         <div class="bar">
           <input id="world" placeholder="월드 (예: 스카니아)" size="10">
           <datalist id="worlds">
@@ -49,7 +49,7 @@
       </section>
 
       <section class="panel" data-fold="roi">
-        <h2>2. 표 영역 지정 <span class="tip" tabindex="0" data-tip="길드창 컨텐츠 참여 현황 표는 자동으로 찾습니다(창을 옮겨도 따라감).&#10;못 찾으면 위 화면에서 길드원 목록의 첫 행부터 마지막 행까지(헤더 제외) 드래그하세요.&#10;아래 확대 화면의 주황 세로선을 끌어 열 경계를 조정할 수 있습니다.">?</span></h2>
+        <h2>3. 표 영역 지정 <span class="req">필수</span> <span class="tip" tabindex="0" data-tip="길드창 컨텐츠 참여 현황 표는 자동으로 찾습니다(창을 옮겨도 따라감).&#10;못 찾으면 위 화면에서 길드원 목록의 첫 행부터 마지막 행까지(헤더 제외) 드래그하세요.&#10;아래 확대 화면의 주황 세로선을 끌어 열 경계를 조정할 수 있습니다.">?</span></h2>
         <canvas id="roiView" hidden></canvas>
         <div class="bar">
           <button id="btnAutoCols">열 경계 자동 맞춤</button>
@@ -60,7 +60,7 @@
     </div>
 
     <section class="panel col" data-fold="result">
-      <h2>3. 결과 <span class="tip" tabindex="0" data-tip="노란 칸은 인식이 불확실한 값, 파란 닉네임은 명단 소거법으로 추정한 값입니다.&#10;칸을 클릭하면 직접 고칠 수 있고, &quot;원본 행 같이 보기&quot;를 켜면 각 칸 아래에 원본 캡처가 나옵니다.&#10;고친 닉네임과 기록 저장 시의 닉네임은 학습되어 다음 캡처부터 자동으로 채워집니다.">?</span></h2>
+      <h2>4. 결과 <span class="tip" tabindex="0" data-tip="노란 칸은 인식이 불확실한 값, 파란 닉네임은 명단 소거법으로 추정한 값입니다.&#10;칸을 클릭하면 직접 고칠 수 있고, &quot;원본 행 같이 보기&quot;를 켜면 각 칸 아래에 원본 캡처가 나옵니다.&#10;고친 닉네임과 기록 저장 시의 닉네임은 학습되어 다음 캡처부터 자동으로 채워집니다.">?</span></h2>
       <div class="bar">
         <span id="summary" class="summary"></span>
       </div>

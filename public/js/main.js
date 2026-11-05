@@ -7,6 +7,7 @@ import { findTable, findTableScaled, headerStrip, sameStrip } from './detect.js'
 import { fetchRoster, getRoster, matchMember } from './members.js';
 import { attachCombo } from './combo.js';
 import { startReporter } from './report.js';
+import { uiAlert, uiConfirm, uiPrompt } from './dialog.js';
 
 const $ = s => document.querySelector(s);
 const statusEl = $('#ocrStatus'), progressEl = $('#progress'), video = $('#video');
@@ -90,7 +91,7 @@ function fitColumns(quiet) {
   editor.setRows(rows);
   const d = autoDividers(img, editor.roi, rows);
   if (d) editor.setDividers(d);
-  else if (!quiet) alert('열을 자동으로 찾지 못했습니다. 주황 세로선을 직접 끌어 맞춰 주세요.');
+  else if (!quiet) uiAlert('열을 자동으로 찾지 못했습니다. 주황 세로선을 직접 끌어 맞춰 주세요.');
 }
 
 // 자동 감지 영역이 아직 머리글 바로 아래에 있는지
@@ -119,10 +120,15 @@ function autoLocate(force) {
   return true;
 }
 
+// 명단은 필수: 닉네임은 명단 안에서만 맞추므로 명단 없이 인식하지 않는다
+const hasRoster = () => !!getRoster()?.members?.length;
+const NEED_ROSTER = '먼저 "2. 길드원 명단"에서 월드와 길드명을 넣고 명단을 불러오세요.\n닉네임은 길드원 명단 안에서만 맞춥니다.';
+
 async function recognize() {
   if (busy) return;
-  if (!frame.width) return alert('먼저 화면을 가져오세요.');
-  if (!editor.roi) return alert('먼저 표 영역을 드래그로 지정하세요.');
+  if (!hasRoster()) return uiAlert(NEED_ROSTER);
+  if (!frame.width) return uiAlert('먼저 화면을 가져오세요.');
+  if (!editor.roi) return uiAlert('먼저 표 영역을 드래그로 지정하세요.');
   busy = true;
   try {
     await ocrReady;
@@ -167,6 +173,7 @@ bindImageInputs($('#fileInput'), async files => {
   for (const f of files) {
     await loadFile(f);
     autoLocate(false);
+    if (!hasRoster()) { progressEl.textContent = '길드원 명단을 불러온 뒤 "현재 화면 인식"을 누르세요.'; uiAlert(NEED_ROSTER); return; }
     if (editor.roi) await recognize();
   }
   if (!editor.roi) progressEl.textContent = '길드창 표를 찾지 못했습니다. 표 영역을 드래그로 지정한 뒤 "현재 화면 인식"을 누르세요.';
@@ -286,7 +293,7 @@ $('#btnShare').addEventListener('click', async () => {
     const stream = await startShare(video);
     stream.getVideoTracks()[0].addEventListener('ended', stopSharing);
   } catch (e) {
-    if (e.name !== 'NotAllowedError') alert('화면 공유 실패: ' + e.message);
+    if (e.name !== 'NotAllowedError') uiAlert('화면 공유 실패: ' + e.message);
     return;
   }
   sharing = true;
@@ -304,11 +311,14 @@ $('#btnShare').addEventListener('click', async () => {
   }, TICK_MS);
 });
 $('#btnStopShare').addEventListener('click', stopSharing);
+$('#chkAuto').addEventListener('change', e => {
+  if (e.target.checked && !hasRoster()) { e.target.checked = false; uiAlert(NEED_ROSTER); }
+});
 
 $('#btnRecognize').addEventListener('click', recognize);
 $('#btnAutoCols').addEventListener('click', () => fitColumns(false));
 $('#btnFindTable').addEventListener('click', () => {
-  if (!autoLocate(true)) alert('길드창의 컨텐츠 참여 현황 표를 찾지 못했습니다. 드래그로 직접 지정해 주세요.');
+  if (!autoLocate(true)) uiAlert('길드창의 컨텐츠 참여 현황 표를 찾지 못했습니다. 드래그로 직접 지정해 주세요.');
 });
 
 // 길드원 명단(넥슨 API)
@@ -327,7 +337,7 @@ try { $('#apiKey').value = localStorage.getItem('mgo.apiKey') || ''; } catch {}
 
 async function loadRoster(force) {
   const world = $('#world').value.trim(), name = $('#guildName').value.trim(), key = $('#apiKey').value.trim();
-  if (!world || !name) return alert('월드와 길드명을 입력하세요.');
+  if (!world || !name) return uiAlert('월드와 길드명을 입력하세요.');
   try { localStorage.setItem('mgo.apiKey', key); } catch {}
   rosterStatus.textContent = '불러오는 중…';
   try {
@@ -358,47 +368,58 @@ table.onFilter = k => { filterSel.value = k; };
 $('#chkOrig').addEventListener('change', e => table.setShowOrig(e.target.checked));
 compareSel.addEventListener('change', () => table.setCompare(selectedSnapshot()));
 
-$('#btnSave').addEventListener('click', () => {
-  if (!table.rows.length) return alert('저장할 결과가 없습니다.');
-  const label = prompt('기록 이름', new Date().toLocaleDateString('ko-KR') + ' 이번 주');
+$('#btnSave').addEventListener('click', async () => {
+  if (!table.rows.length) return uiAlert('저장할 결과가 없습니다.');
+  if (!(await reviewed('기록으로 저장'))) return;
+  const label = await uiPrompt('기록 이름을 입력하세요.', new Date().toLocaleDateString('ko-KR') + ' 이번 주', { title: '기록 저장', ok: '저장' });
   if (!label) return;
   table.saveSnapshot(label);
   refreshSnapshots();
 });
-$('#btnLoad').addEventListener('click', () => {
+$('#btnLoad').addEventListener('click', async () => {
   const s = selectedSnapshot();
-  if (!s) return alert('위 목록에서 불러올 기록을 선택하세요.');
-  if (table.rows.length && !confirm('현재 결과를 지우고 선택한 기록을 불러올까요?')) return;
+  if (!s) return uiAlert('위 목록에서 불러올 기록을 선택하세요.');
+  if (table.rows.length && !(await uiConfirm('현재 결과를 지우고 선택한 기록을 불러올까요?', { title: '기록 불러오기', ok: '불러오기' }))) return;
   table.loadSnapshot(s);
   compareSel.value = '';
   table.setCompare(null);
 });
-$('#btnDelSnap').addEventListener('click', () => {
+$('#btnDelSnap').addEventListener('click', async () => {
   const s = selectedSnapshot();
-  if (!s || !confirm(`"${s.label}" 기록을 삭제할까요?`)) return;
+  if (!s || !(await uiConfirm(`"${s.label}" 기록을 삭제할까요?`, { title: '기록 삭제', ok: '삭제', danger: true }))) return;
   ResultTable.deleteSnapshot(s.id);
   refreshSnapshots('');
   table.setCompare(null);
 });
 
-$('#btnCsv').addEventListener('click', () => table.downloadCsv());
-$('#btnLowJson').addEventListener('click', () => {
+// 확인 절차: 확인이 필요한 행이 남아 있으면 저장·내보내기 전에 한 번 더 묻는다
+async function reviewed(action) {
+  const n = table.unratedCount();
+  if (!n || await uiConfirm(`확인이 필요한 ${n}행을 아직 평가하지 않았습니다.\n그대로 ${action}할까요?`, { title: '검토가 남아 있습니다', ok: `그대로 ${action}`, cancel: '검토하기' })) return true;
+  table.setFilter('unrated');
+  filterSel.value = 'unrated';
+  return false;
+}
+
+$('#btnCsv').addEventListener('click', async () => { if (await reviewed('CSV로 저장')) table.downloadCsv(); });
+$('#btnLowJson').addEventListener('click', async () => {
   const bad = table.evalRows().length, unrated = table.unratedCount();
-  if (!bad) return alert('"틀림"으로 평가한 행이 없습니다. 검토 필터에서 맞음/틀림을 평가해 주세요.');
+  if (!bad) return uiAlert('"틀림"으로 평가한 행이 없습니다. 검토 필터에서 맞음/틀림을 평가해 주세요.');
   const noTruth = table.evalRows().filter(r => !r.truthKnown).length;
   const notes = [
     unrated && `평가하지 않은 ${unrated}건은 제외됩니다.`,
     noTruth && `틀림 ${bad}건 중 ${noTruth}건은 정답 닉네임을 고르지 않았습니다(검색칸에서 선택하면 분석에 도움이 됩니다).`,
   ].filter(Boolean);
-  if (notes.length && !confirm(`${notes.join('\n')}\n\n틀림 ${bad}건을 내보낼까요?`)) return;
+  if (notes.length && !(await uiConfirm(`${notes.join('\n')}\n\n틀림 ${bad}건을 내보낼까요?`, { title: '오인식 내보내기', ok: '내보내기' }))) return;
   table.downloadLowJson();
 });
 $('#btnCopy').addEventListener('click', async () => {
+  if (!(await reviewed('복사'))) return;
   await table.copyTsv();
   progressEl.textContent = '클립보드에 복사했습니다. 엑셀에 붙여넣으세요.';
 });
-$('#btnClear').addEventListener('click', () => {
-  if (table.rows.length && confirm('결과를 모두 지울까요?')) {
+$('#btnClear').addEventListener('click', async () => {
+  if (table.rows.length && await uiConfirm('결과를 모두 지울까요?', { title: '전체 지우기', ok: '지우기', danger: true })) {
     table.clear();
     rowCache.clear();
     seen.clear();
@@ -410,7 +431,7 @@ $('#btnClear').addEventListener('click', () => {
 
 // 패널 접기: 제목 클릭으로 토글, 상태는 localStorage에 기억
 const FOLD_KEY = 'mgo.folded';
-let folded = ['roi'];  // 저장값이 없으면 2. 표 영역 지정만 접힌 상태로 시작
+let folded = [];  // 저장값이 없으면 모두 펼친 상태로 시작(명단·표 영역은 필수 단계)
 try { folded = JSON.parse(localStorage.getItem(FOLD_KEY)) ?? folded; } catch {}
 document.querySelectorAll('.panel[data-fold]').forEach(panel => {
   const id = panel.dataset.fold;
