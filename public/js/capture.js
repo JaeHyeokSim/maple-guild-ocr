@@ -1,7 +1,12 @@
 // 화면 공유 / 이미지 파일 / 붙여넣기 입력.
 
+export const SHARE_FPS = 5;
+
 export async function startShare(video) {
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false });
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: SHARE_FPS }, audio: false });
+  // 글자 화면임을 알려 부하가 걸려도 해상도 대신 프레임 수를 줄이게 한다(기본값은 큰 화면을 축소해 숫자가 뭉개짐).
+  const track = stream.getVideoTracks()[0];
+  if (track && 'contentHint' in track) track.contentHint = 'text';
   video.srcObject = stream;
   await video.play();
   return stream;

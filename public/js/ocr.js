@@ -3,7 +3,7 @@ import { makeCell, isOnline, cropDataURL, textHash, textBox, nameEnd } from './s
 import { lookupName } from './names.js';
 import { matchMember, getRoster } from './members.js';
 import { correctJob } from './jobs.js';
-import { readDigits } from './digits.js';
+import { readDigits, readDigitsBlurred } from './digits.js';
 
 const LINE = { tessedit_pageseg_mode: '7' }; // 한 줄 텍스트
 const COMMA_NUM = /^\d{1,3}(,\d{3})*$/;
@@ -90,12 +90,20 @@ export async function readGlyphs(img, r) {
 async function readNumber(img, r, re) {
   const exact = readDigits(img, ...r);
   if (exact !== null && re.test(exact)) return { value: parseInt(exact.replace(/,/g, ''), 10), ok: true, exact: true };
+  // 배율이 다른 화면(img.hi 있음): 번진 숫자를 템플릿으로 읽는다. Tesseract는 5/6, 3/5/8을 자주 헷갈린다.
+  const blur = img.hi ? readDigitsBlurred(img, ...r) : null;
+  const blurOk = blur && re.test(blur.text);
+  if (blurOk && !blur.unsure) return { value: parseInt(blur.text.replace(/,/g, ''), 10), ok: true, exact: true };
   let first = null;
   for (const [scale, th] of NUM_TRIES) {
     const res = await rec(W.num, makeCell(img, ...r, { scale, th }));
     first ??= res;
-    if (re.test(res.text)) return { value: parseInt(res.text.replace(/,/g, ''), 10), ok: true };
+    if (!re.test(res.text)) continue;
+    // 템플릿이 애매했으면 Tesseract와 같을 때만 확정, 다르면 템플릿 값을 확인 칸으로
+    if (blurOk && res.text !== blur.text) return { value: parseInt(blur.text.replace(/,/g, ''), 10), ok: false };
+    return { value: parseInt(res.text.replace(/,/g, ''), 10), ok: true };
   }
+  if (blurOk) return { value: parseInt(blur.text.replace(/,/g, ''), 10), ok: false };
   const digits = first.text.replace(/\D/g, '');
   return { value: digits ? parseInt(digits, 10) : null, ok: false };
 }

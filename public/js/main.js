@@ -2,7 +2,7 @@ import { RoiEditor } from './roi.js';
 import { detectRows, fullRows, autoDividers, columnRects, regionHash } from './segment.js';
 import { initOcr, recognizeRow } from './ocr.js';
 import { ResultTable, loadSnapshots } from './table.js';
-import { startShare, stopShare, bindImageInputs } from './capture.js';
+import { startShare, stopShare, bindImageInputs, SHARE_FPS } from './capture.js';
 import { findTable, findTableScaled, headerStrip, sameStrip } from './detect.js';
 import { fetchRoster, getRoster, matchMember } from './members.js';
 import { attachCombo } from './combo.js';
@@ -184,7 +184,10 @@ bindImageInputs($('#fileInput'), async files => {
 const TICK_MS = 120;
 let timer = null, ticks = 0, prevKeys = null, gaps = 0, draining = false, rejected = 0;
 const queue = [], seen = new Set();
-const sightings = new Map(); // 행 해시 → 본 횟수. 스크롤 중 한 번만 스친 깨진 프레임 행은 거른다.
+// 행 해시 → { n: 본 횟수, t: 마지막으로 센 시각 }. 스크롤 중 한 번만 스친 깨진 프레임 행은 거른다.
+// 화면 공유 프레임(SHARE_FPS)보다 자주 읽으므로 같은 프레임을 두 번 읽은 것은 세지 않는다.
+const sightings = new Map();
+const MIN_SIGHT_GAP = 1000 / SHARE_FPS + 20;
 const exactStat = { ok: 0, fail: 0 }; // 숫자 템플릿 성공/실패 — 원본 배율 캡처인지 판단
 // 정수배가 아닌 배율에서는 줄인 글자 가장자리의 중간 밝기 픽셀이 영상 노이즈로 임계값을 오가 같은 행도 해시가 달라진다.
 // 그래서 처음 보는 해시는 열별 글자량 프로필이 거의 같은 기존 행의 키로 묶는다.
@@ -236,9 +239,13 @@ function sampleRows() {
   prevKeys = keys;
   bands.forEach((band, i) => {
     if (seen.has(keys[i]) || rowCache.has(keys[i])) return;
-    const n = (sightings.get(keys[i]) || 0) + 1;
-    sightings.set(keys[i], n);
-    if (n < 2) return;
+    const now = performance.now();
+    const s = sightings.get(keys[i]);
+    if (!s) { sightings.set(keys[i], { n: 1, t: now }); return; }
+    if (now - s.t < MIN_SIGHT_GAP) return;
+    s.n++;
+    s.t = now;
+    if (s.n < 2) return;
     seen.add(keys[i]);
     if (img.hi === undefined) img.hi = hiRes(roi); // 고해상도 원본은 새 행이 있을 때만 잘라 둔다
     queue.push({ img, cols, band, key: keys[i] });
