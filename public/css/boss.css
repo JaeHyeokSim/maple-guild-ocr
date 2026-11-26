@@ -12,6 +12,7 @@ main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   text-align: center; color: var(--muted);
 }
 body.dragging .drop { border-color: var(--accent); color: var(--accent); background: rgba(43, 179, 214, .08); }
+.srcPreview { display: block; width: 100%; border: 1px solid var(--line); border-radius: 4px; margin-top: 8px; }
 #video { width: 100%; border: 1px solid var(--line); border-radius: 4px; margin-top: 8px; }
 
 .items { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }

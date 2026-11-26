@@ -404,12 +404,23 @@ function bind() {
   $('#btnClearItems').addEventListener('click', () => {
     state.items = [];
     clearCrops();
+    showSource(null);
     $('#ocrMsg').textContent = '';
     onItemsChanged(true);
   });
 
   // 이미지 입력 (붙여넣기·드래그·파일)
+  // 마지막으로 넣은 스크린샷 미리보기 (화면 공유 중이면 공유 화면이 대신 보임)
+  let previewUrl = null;
+  const showSource = file => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = file ? URL.createObjectURL(file) : null;
+    const img = $('#srcPreview');
+    if (previewUrl) img.src = previewUrl; else img.removeAttribute('src');
+    img.hidden = !previewUrl || !!$('#video').srcObject;
+  };
   bindImageInputs($('#fileInput'), async files => {
+    showSource(files[files.length - 1]);
     for (const f of files) await recognize(await loadImage(f), f.name || '붙여넣은 이미지');
   });
   let dragDepth = 0;
@@ -424,6 +435,7 @@ function bind() {
     $('#btnStopShare').hidden = !on;
     $('#btnGrab').disabled = !on;
     video.hidden = !on;
+    $('#srcPreview').hidden = on || !$('#srcPreview').getAttribute('src');
   };
   $('#btnShare').addEventListener('click', async () => {
     try {
