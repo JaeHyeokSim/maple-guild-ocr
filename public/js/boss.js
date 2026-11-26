@@ -185,7 +185,7 @@ async function copyCropImage() {
 let busy = Promise.resolve();
 let pending = 0;
 
-// 처리 중 표시: 스피너 + 진행 막대 (대기 중인 건이 있으면 계속 표시)
+// 처리 중 표시: 진행 막대 (대기 중인 건이 있으면 계속 표시)
 function setProgress(v) {
   const pct = Math.round(Math.max(0, Math.min(1, v)) * 100);
   $('#ocrBar').style.width = pct + '%';
