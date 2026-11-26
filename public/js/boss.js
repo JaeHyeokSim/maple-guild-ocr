@@ -1,6 +1,6 @@
 // 보스 분배금 계산기 페이지: 경매장 판매 기록 OCR → 판매액 합계 → 분배 계산.
 import { startShare, stopShare, bindImageInputs } from './capture.js';
-import { initAuctionOcr, readAuction } from './auction-ocr.js';
+import { initAuctionOcr, readAuction, onAuctionProgress } from './auction-ocr.js';
 import {
   MAX_DIGITS, actualFromAuction, auctionFromActual, roleLabel, ratioPercent, split, leaderSurplus, korean, comma,
 } from './boss-calc.js';
@@ -184,11 +184,26 @@ async function copyCropImage() {
 // 같은 페이지를 여러 번 넣어도 위의 중복 판정으로 한 번만 반영된다.
 let busy = Promise.resolve();
 let pending = 0;
+
+// 처리 중 표시: 스피너 + 진행 막대 (대기 중인 건이 있으면 계속 표시)
+function setProgress(v) {
+  const pct = Math.round(Math.max(0, Math.min(1, v)) * 100);
+  $('#ocrBar').style.width = pct + '%';
+  $('#ocrPct').textContent = pct + '%';
+}
+function showBusy(on) {
+  $('#ocrBusy').hidden = !on;
+  if (on) setProgress(0);
+}
+onAuctionProgress(setProgress);
+
 function recognize(src, label) {
   pending++;
+  showBusy(true);
   if (pending > 1) $('#ocrMsg').textContent = `인식 중… (대기 ${pending - 1}건)`;
   busy = busy.then(async () => {
     const msg = $('#ocrMsg');
+    setProgress(0);
     msg.textContent = `${label} 인식 중…${pending > 1 ? ` (대기 ${pending - 1}건)` : ''}`;
     try {
       const { items, text, page, crop } = await readAuction(src);
@@ -209,6 +224,7 @@ function recognize(src, label) {
       msg.textContent = 'OCR 실패: ' + e.message;
     } finally {
       pending--;
+      if (!pending) showBusy(false);
     }
   });
   return busy;

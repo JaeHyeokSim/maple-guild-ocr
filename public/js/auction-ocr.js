@@ -2,12 +2,18 @@
 // 캡처 전체를 흑백 반전·확대해 Tesseract(kor)로 읽고, 텍스트에서 "N억 NNNN만 NNNN" 금액을 찾는다.
 
 let workerPromise = null;
+let progressCb = null; // 인식 진행률(0~1) 콜백
+
+export function onAuctionProgress(fn) {
+  progressCb = fn;
+}
 
 export function initAuctionOcr(onStatus) {
   if (!workerPromise) {
     workerPromise = Tesseract.createWorker('kor', 1, {
       logger: m => {
-        if (m.status !== 'recognizing text' && m.progress < 1) onStatus?.(`kor ${m.status} ${Math.round(m.progress * 100)}%`);
+        if (m.status === 'recognizing text') progressCb?.(m.progress * 0.9);
+        else if (m.progress < 1) onStatus?.(`kor ${m.status} ${Math.round(m.progress * 100)}%`);
       },
     });
   }
@@ -211,6 +217,7 @@ export async function readAuction(src) {
   const worker = await initAuctionOcr();
   const img = preprocess(src);
   const { data } = await worker.recognize(img.canvas);
+  progressCb?.(0.9);
   let page = null;
   try { page = await readPage(data.lines || [], img); } catch (e) { console.warn('[분배금] 페이지 번호 인식 실패', e); }
   let crop = null;

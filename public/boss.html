@@ -29,6 +29,11 @@
       <div id="dropHint" class="drop">📋 스크린샷을 <b>Ctrl+V</b> 하거나 이 페이지에 끌어다 놓으세요</div>
       <video id="video" muted playsinline hidden></video>
       <img id="srcPreview" class="srcPreview" alt="마지막으로 넣은 스크린샷" hidden>
+      <div id="ocrBusy" class="ocrBusy" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <div class="progress"><div id="ocrBar" class="progressBar"></div></div>
+        <span id="ocrPct" class="pct">0%</span>
+      </div>
       <div id="ocrMsg" class="hint"></div>
       <div id="items" class="items"></div>
       <div class="bar itemsFoot">
