@@ -27,6 +27,11 @@ header {
   border-bottom: 1px solid var(--line);
 }
 header h1 { font-size: 18px; margin: 0; }
+.nav { display: flex; gap: 4px; }
+.nav a { padding: 4px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 13px; }
+.nav a:hover { color: var(--text); background: #323a43; }
+.nav a.on { color: var(--accent); background: rgba(43, 179, 214, .12); }
+@media (max-width: 600px) { header { flex-wrap: wrap; gap: 8px 16px; } }
 
 .status { color: var(--muted); font-size: 13px; }
 .status.ready { color: var(--ok); }

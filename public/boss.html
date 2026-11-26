@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>보스 분배금 계산기</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/boss.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script type="module" src="js/boss.js"></script>
+</head>
+<body>
+  <header>
+    <h1>보스 분배금 계산기</h1>
+    <nav class="nav"><a href="index.html">참여현황 OCR</a><a href="boss.html" class="on">분배금 계산기</a></nav>
+    <span id="ocrStatus" class="status">OCR 엔진 로딩 중…</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>1. 경매장 판매 기록 <span class="tip" tabindex="0" data-tip="경매장 → 완료 → 거래 기록 → 판매 완료 화면을 읽어 판매 금액을 모읍니다.&#10;스크린샷을 Ctrl+V로 붙여넣거나 끌어다 놓거나, 메이플 창을 공유한 뒤 &quot;현재 화면 인식&quot;을 누르세요.&#10;페이지를 넘기며 여러 번 인식하면 누적됩니다. 이미 목록에 있는 금액은 같은 건으로 보고 건너뜁니다.">?</span></h2>
+      <div class="bar">
+        <button id="btnShare">메이플 창 공유 시작</button>
+        <button id="btnStopShare" hidden>공유 중지</button>
+        <button id="btnGrab" class="primary" disabled>현재 화면 인식</button>
+        <label class="btn">이미지 열기<input type="file" id="fileInput" accept="image/*" multiple hidden></label>
+      </div>
+      <div id="dropHint" class="drop">📋 스크린샷을 <b>Ctrl+V</b> 하거나 이 페이지에 끌어다 놓으세요</div>
+      <video id="video" muted playsinline hidden></video>
+      <div id="ocrMsg" class="hint"></div>
+      <div id="items" class="items"></div>
+      <div class="bar itemsFoot">
+        <span id="itemsTotal" class="summary"></span>
+        <button id="btnCopyImage" title="인식한 캡처에서 판매 행만 잘라 이어 붙인 이미지를 복사합니다">판매 내역 이미지 복사</button>
+        <button id="btnAddItem">직접 추가</button>
+        <button id="btnClearItems" class="danger">비우기</button>
+      </div>
+      <div id="copyImgMsg" class="hint"></div>
+      <img id="cropPreview" class="cropPreview" alt="판매 내역 이미지 미리보기" hidden>
+    </section>
+
+    <section class="panel calc">
+      <h2>2. 분배금 계산</h2>
+
+      <div class="field">
+        <label>수수료</label>
+        <div class="seg" id="segCommission">
+          <button type="button" data-v="5" class="on">5%</button>
+          <button type="button" data-v="3">3%</button>
+          <button type="button" data-v="0">0%</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="auctionPrice">경매장 판매액 <small id="auctionSrc" class="src"></small></label>
+        <input id="auctionPrice" type="number" min="0" inputmode="numeric" placeholder="경매장 판매액">
+        <div class="kr" id="auctionKr"></div>
+      </div>
+
+      <div class="field">
+        <label for="actualAmount">실제 수령액</label>
+        <input id="actualAmount" type="number" min="0" inputmode="numeric" placeholder="실제 수령액">
+        <div class="kr" id="actualKr"></div>
+      </div>
+
+      <div class="field">
+        <label>인원수</label>
+        <div class="seg" id="segCount">
+          <button type="button" data-v="2" class="on">2명</button>
+          <button type="button" data-v="3">3명</button>
+          <button type="button" data-v="4">4명</button>
+          <button type="button" data-v="5">5명</button>
+          <button type="button" data-v="6">6명</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="toggle"><input type="checkbox" id="chkRatio"> 상세 비율 설정 <span class="tip" tabindex="0" data-tip="실수령 기준 분배 비율입니다 (예: 6 : 4, 4 : 4 : 2).&#10;파티원 전달액은 수수료를 포함해 계산하고 100의 자리에서 내립니다.">?</span></label>
+        <div id="ratioBox" class="ratios" hidden></div>
+      </div>
+
+      <div class="result">
+        <div class="resultHead">계산 결과 <span id="modeBadge" class="badge">공평 분배</span></div>
+        <div id="resultCards" class="cards"></div>
+        <div class="hint" id="resultNote">파티원 분배 금액은 100의 자리에서 내리고, 파티장이 나머지를 갖습니다.</div>
+        <div class="bar">
+          <button id="btnCopyResult">결과 복사</button>
+          <span id="copyMsg" class="hint"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    This site is not associated with NEXON Korea. 분배 수식은 메이플로드 보스 분배금 계산기와 같습니다.
+  </footer>
+</body>
+</html>

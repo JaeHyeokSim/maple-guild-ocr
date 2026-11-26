@@ -1,0 +1,66 @@
+/* 보스 분배금 계산기 (boss.html) */
+/* display 지정이 hidden 속성을 덮어쓰지 않도록 */
+[hidden] { display: none !important; }
+main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+}
+
+.drop {
+  padding: 14px; margin: 8px 0;
+  border: 1px dashed var(--line); border-radius: 8px;
+  text-align: center; color: var(--muted);
+}
+body.dragging .drop { border-color: var(--accent); color: var(--accent); background: rgba(43, 179, 214, .08); }
+#video { width: 100%; border: 1px solid var(--line); border-radius: 4px; margin-top: 8px; }
+
+.items { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.item { display: flex; align-items: center; gap: 6px; }
+.item.dup { opacity: .55; }
+.item input[type=text], .item input[type=number] { padding: 4px 8px; cursor: text; }
+.item .name { flex: 1; min-width: 0; }
+.item .val { width: 140px; text-align: right; }
+.item .kr { width: 130px; font-size: 12px; color: var(--muted); }
+.item .tag { font-size: 11px; color: var(--warn); }
+.item .pg { width: 26px; font-size: 11px; color: var(--muted); text-align: center; }
+.itemsFoot { justify-content: flex-end; }
+.cropPreview { display: block; max-width: 100%; margin-top: 8px; border: 1px solid var(--line); border-radius: 4px; }
+.itemsFoot .summary { margin-right: auto; }
+@media (max-width: 600px) {
+  .item { flex-wrap: wrap; }
+  .item .name { flex-basis: calc(100% - 60px); }
+  .item .val { flex: 1; width: auto; }
+}
+
+.calc .field { margin: 12px 0; }
+.calc .field > label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+.calc .field > label.toggle { display: inline-flex; color: var(--text); }
+.calc input[type=number] { width: 100%; cursor: text; font-size: 16px; font-variant-numeric: tabular-nums; }
+.kr { margin-top: 4px; font-size: 12.5px; color: var(--accent); min-height: 1.2em; }
+.src { color: var(--ok); font-weight: normal; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { flex: 1; min-width: 52px; }
+.seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+
+.ratios { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; margin-top: 8px; }
+.ratios .ratio { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); }
+.ratios .ratio.leader { color: var(--warn); }
+.ratios input { width: 64px; text-align: center; padding: 4px; font-size: 15px; }
+.ratios .sep { padding-bottom: 6px; color: var(--muted); }
+.ratios .sum { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.ratios .sum.bad { color: var(--danger); }
+
+.result { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.resultHead { font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.badge { font-size: 11px; font-weight: normal; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); }
+.badge.custom { border-color: var(--warn); color: var(--warn); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.card { background: #1f252b; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.card.hl { border-color: var(--accent); }
+.card .lbl { font-size: 12.5px; color: var(--muted); }
+.card .lbl b { color: var(--warn); font-weight: normal; margin-left: 4px; }
+.card .v { font-size: 18px; font-weight: bold; font-variant-numeric: tabular-nums; }
+.card .u { font-size: 12.5px; color: var(--accent); }
+.card .s { font-size: 11.5px; color: var(--muted); }
+.card.empty { color: var(--muted); grid-column: 1 / -1; text-align: center; }
